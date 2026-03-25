@@ -7,5 +7,6 @@ include $(THEOS)/makefiles/common.mk
 TWEAK_NAME = AuthSystem
 AuthSystem_FILES = Tweak.x
 AuthSystem_CFLAGS = -fobjc-arc
+AuthSystem_FRAMEWORKS = UIKit Foundation
 
 include $(THEOS)/makefiles/tweak.mk
