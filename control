@@ -1,0 +1,9 @@
+Package: com.yamada3729.authsystem
+Name: AuthSystem
+Depends: mobilesubstrate
+Version: 0.0.1
+Architecture: iphoneos-arm
+Description: Private Auth System for yamada3729
+Maintainer: yamada3729
+Author: yamada3729
+Section: Tweaks
