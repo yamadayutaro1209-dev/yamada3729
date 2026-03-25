@@ -1,10 +1,8 @@
 #import <UIKit/UIKit.h>
 
-// あなたのサーバーURL
 static NSString *authURL = @"http://webudid.gt.tc/check.php";
 
 void verifyUser() {
-    // 端末固有のIDを取得
     NSString *deviceId = [[[UIDevice currentDevice] identifierForVendor] UUIDString];
     NSString *checkUrl = [NSString stringWithFormat:@"%@?myid=%@", authURL, deviceId];
 
@@ -13,10 +11,8 @@ void verifyUser() {
 
     dispatch_async(dispatch_get_main_queue(), ^{
         if ([res isEqualToString:@"ALLOWED"]) {
-            // 認証成功：何もしない（そのまま遊べる）
-            NSLog(@"[Auth] Success: Device is allowed.");
+            NSLog(@"[Auth] Success");
         } else {
-            // 認証失敗：IDを表示してアプリを終了させる
             UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"認証が必要です" 
                 message:[NSString stringWithFormat:@"以下のIDを管理者に送ってください:\n\n%@", deviceId] 
                 preferredStyle:UIAlertControllerStyleAlert];
@@ -26,14 +22,25 @@ void verifyUser() {
                 exit(0); 
             }]];
 
-            // 画面に表示
-            UIWindow *window = [UIApplication sharedApplication].keyWindow;
+            // --- ここを修正：古い keyWindow を使わない書き方 ---
+            UIWindow *window = nil;
+            if (@available(iOS 13.0, *)) {
+                for (UIWindowScene *scene in [UIApplication sharedApplication].connectedScenes) {
+                    if (scene.activationState == UISceneActivationStateForegroundActive) {
+                        window = scene.windows.firstObject;
+                        break;
+                    }
+                }
+            }
+            if (!window) {
+                window = [UIApplication sharedApplication].windows.firstObject;
+            }
+            
             [window.rootViewController presentViewController:alert animated:YES completion:nil];
         }
     });
 }
 
-// アプリ起動時に実行
 %ctor {
     [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidFinishLaunchingNotification object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification *n){
         verifyUser();
