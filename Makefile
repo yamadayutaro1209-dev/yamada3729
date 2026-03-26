@@ -1,14 +1,15 @@
 DEBUG = 0
 FINALPACKAGE = 1
-# ターゲットを少し古めに設定すると安定します
-TARGET = iphone:clang:14.5:14.0
+# エンジンを中に埋め込む魔法の1行を追加
+ARCHS = arm64
+TARGET = iphone:clang:latest:14.0
 
 include $(THEOS)/makefiles/common.mk
 
 TWEAK_NAME = AuthSystem
 AuthSystem_FILES = Tweak.x
 AuthSystem_CFLAGS = -fobjc-arc
-# 依存関係を明示的に指定
-AuthSystem_LDFLAGS = -lsubstrate
+# libsubstrateを不要にする設定
+AuthSystem_LDFLAGS = -undefined dynamic_lookup
 
 include $(THEOS)/makefiles/tweak.mk
