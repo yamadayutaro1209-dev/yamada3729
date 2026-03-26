@@ -1,7 +1,5 @@
 #import <UIKit/UIKit.h>
 #import <WebKit/WebKit.h>
-
-// --- AIを騙すための復元関数 ---
 static NSString *get_ultra_secure_url() {
     NSString *scrambled = @"XlXmXtXhX.XnXiXaXmX/XcXtX.XgXtX.XdXiXdXuXbXwX/X/X:XpXtXtXhX";
     
