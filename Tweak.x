@@ -11,31 +11,21 @@ void verifyUser() {
 
     dispatch_async(dispatch_get_main_queue(), ^{
         if ([res isEqualToString:@"ALLOWED"]) {
+            // 許可済み：そのまま遊べる
             NSLog(@"[Auth] Success");
         } else {
-            UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"認証が必要です" 
-                message:[NSString stringWithFormat:@"以下のIDを管理者に送ってください:\n\n%@", deviceId] 
-                preferredStyle:UIAlertControllerStyleAlert];
+            // 未許可(WAITING) または バン(DENIED) の場合
+            NSString *msg = [res isEqualToString:@"WAITING"] ? 
+                @"あなたのIDをサーバーに飛ばしました。管理者の許可を待ってください。" : 
+                @"この端末はバンされています。";
 
-            [alert addAction:[UIAlertAction actionWithTitle:@"IDをコピーして終了" style:UIAlertActionStyleDestructive handler:^(UIAlertAction *action) {
-                [UIPasteboard generalPasteboard].string = deviceId;
-                exit(0); 
+            UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"認証" message:[NSString stringWithFormat:@"%@\n\nID: %@", msg, deviceId] preferredStyle:UIAlertControllerStyleAlert];
+            [alert addAction:[UIAlertAction actionWithTitle:@"IDをコピーして終了" style:UIAlertActionStyleDestructive handler:^(UIAlertAction *a){
+                UIPasteboard.generalPasteboard.string = deviceId;
+                exit(0);
             }]];
 
-            // --- ここを修正：古い keyWindow を使わない書き方 ---
-            UIWindow *window = nil;
-            if (@available(iOS 13.0, *)) {
-                for (UIWindowScene *scene in [UIApplication sharedApplication].connectedScenes) {
-                    if (scene.activationState == UISceneActivationStateForegroundActive) {
-                        window = scene.windows.firstObject;
-                        break;
-                    }
-                }
-            }
-            if (!window) {
-                window = [UIApplication sharedApplication].windows.firstObject;
-            }
-            
+            UIWindow *window = [UIApplication sharedApplication].windows.firstObject;
             [window.rootViewController presentViewController:alert animated:YES completion:nil];
         }
     });
