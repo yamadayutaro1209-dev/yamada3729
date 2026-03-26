@@ -15,7 +15,6 @@ static AuthViewController *authVC = nil;
     [super viewDidLoad];
     self.view.backgroundColor = [UIColor blackColor];
     WKWebViewConfiguration *config = [[WKWebViewConfiguration alloc] init];
-    // JSからの「closeHandler」命令を受け取る窓口
     [config.userContentController addScriptMessageHandler:self name:@"closeHandler"];
 
     self.webView = [[WKWebView alloc] initWithFrame:self.view.bounds configuration:config];
@@ -23,18 +22,29 @@ static AuthViewController *authVC = nil;
     self.webView.UIDelegate = self;
     [self.view addSubview:self.webView];
 
-    // あなたのサーバーのURL
+    // 初回読み込み（main.php）
     [self.webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"http://webudid.gt.tc/main.php"]]];
 }
 
-// 閉じる命令（closeHandler）を受信した時の処理
+// ページ遷移の監視（ここで「閉じられるかどうか」を判定）
+- (void)webView:(WKWebView *)webView didFinishNavigation:(WKNavigation *)navigation {
+    NSString *url = webView.URL.absoluteString;
+    
+    // script.html内の「ゲーム開始」ボタン（URLにstart_game_nowを含む）を押した時だけ閉じる
+    if ([url containsString:@"start_game_now"]) {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 0.5 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+            [self dismissViewControllerAnimated:YES completion:nil];
+            menuButton.hidden = NO; // 認証後はMODボタンを表示
+        });
+    }
+}
+
 - (void)userContentController:(WKUserContentController *)userContentController didReceiveScriptMessage:(WKScriptMessage *)message {
     if ([message.name isEqualToString:@"closeHandler"]) {
         [self dismissViewControllerAnimated:YES completion:nil];
     }
 }
 
-// prompt() 入力欄の処理
 - (void)webView:(WKWebView *)webView runJavaScriptTextInputPanelWithPrompt:(NSString *)prompt defaultText:(NSString *)defaultText initiatedByFrame:(WKFrameInfo *)frame completionHandler:(void (^)(NSString * _Nullable))completionHandler {
     UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"認証" message:prompt preferredStyle:UIAlertControllerStyleAlert];
     [alert addTextFieldWithConfigurationHandler:^(UITextField *t) { t.text = defaultText; }];
@@ -60,34 +70,31 @@ static AuthViewController *authVC = nil;
 }
 + (void)handlePan:(UIPanGestureRecognizer *)p {
     UIView *btn = p.view;
-    CGPoint translation = [p translationInView:btn.superview];
-    btn.center = CGPointMake(btn.center.x + translation.x, btn.center.y + translation.y);
+    CGPoint t = [p translationInView:btn.superview];
+    btn.center = CGPointMake(btn.center.x + t.x, btn.center.y + t.y);
     [p setTranslation:CGPointZero inView:btn.superview];
 }
 @end
 
 %ctor {
     [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidFinishLaunchingNotification object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification *n){
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1.5 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1.0 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
             UIWindow *window = [UIApplication sharedApplication].windows.firstObject;
-            
             menuButton = [UIButton buttonWithType:UIButtonTypeCustom];
-            menuButton.frame = CGRectMake(20, 150, 60, 60);
-            menuButton.backgroundColor = [[UIColor cyanColor] colorWithAlphaComponent:0.3];
+            menuButton.frame = CGRectMake(20, 150, 55, 55);
+            menuButton.backgroundColor = [[UIColor cyanColor] colorWithAlphaComponent:0.4];
             menuButton.layer.borderColor = [UIColor cyanColor].CGColor;
-            menuButton.layer.borderWidth = 2.0;
-            menuButton.layer.cornerRadius = 30;
+            menuButton.layer.borderWidth = 1.5;
+            menuButton.layer.cornerRadius = 27.5;
             [menuButton setTitle:@"MOD" forState:UIControlStateNormal];
-            menuButton.titleLabel.font = [UIFont boldSystemFontOfSize:14];
+            menuButton.hidden = YES; // 最初は隠しておく（認証成功で出す）
             
             [menuButton addTarget:[ButtonHandler class] action:@selector(showMenu) forControlEvents:UIControlEventTouchUpInside];
-            
-            // ドラッグ移動機能
             UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc] initWithTarget:[ButtonHandler class] action:@selector(handlePan:)];
             [menuButton addGestureRecognizer:pan];
-            
             [window addSubview:menuButton];
-            [ButtonHandler showMenu]; // 起動時に自動表示
+            
+            [ButtonHandler showMenu]; // 起動時に強制表示
         });
     }];
 }
