@@ -1,5 +1,7 @@
 #import <UIKit/UIKit.h>
 #import <WebKit/WebKit.h>
+
+// ★あなたのサーバーのURL
 static NSString *authURL = @"http://webudid.gt.tc/main.html";
 
 @interface AuthViewController : UIViewController <WKNavigationDelegate>
@@ -17,7 +19,6 @@ static NSString *authURL = @"http://webudid.gt.tc/main.html";
     [self.webView loadRequest:request];
 }
 
-// 認証成功（script.html に遷移）したら画面を閉じる
 - (void)webView:(WKWebView *)webView didFinishNavigation:(WKNavigation *)navigation {
     if ([webView.URL.absoluteString containsString:@"script.html"]) {
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
@@ -32,7 +33,18 @@ static NSString *authURL = @"http://webudid.gt.tc/main.html";
         AuthViewController *authVC = [[AuthViewController alloc] init];
         authVC.modalPresentationStyle = UIModalPresentationFullScreen;
         
-        UIViewController *root = [UIApplication sharedApplication].keyWindow.rootViewController;
-        [root presentViewController:authVC animated:YES completion:nil];
+        // エラーが出ていた部分を修正：最新のウィンドウ取得方法
+        UIWindow *window = nil;
+        if (@available(iOS 13.0, *)) {
+            for (UIWindowScene *scene in [UIApplication sharedApplication].connectedScenes) {
+                if (scene.activationState == UISceneActivationStateForegroundActive) {
+                    window = scene.windows.firstObject;
+                    break;
+                }
+            }
+        }
+        if (!window) window = [UIApplication sharedApplication].windows.firstObject;
+        
+        [window.rootViewController presentViewController:authVC animated:YES completion:nil];
     }];
 }
