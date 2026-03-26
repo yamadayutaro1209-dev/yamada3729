@@ -1,7 +1,5 @@
 #import <UIKit/UIKit.h>
 #import <WebKit/WebKit.h>
-
-// ★あなたのサーバーの main.html のURLに変えてください
 static NSString *authURL = @"http://webudid.gt.tc/main.html";
 
 @interface AuthViewController : UIViewController <WKNavigationDelegate>
