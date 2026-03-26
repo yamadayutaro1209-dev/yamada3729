@@ -1,52 +1,40 @@
 #import <UIKit/UIKit.h>
+#import <WebKit/WebKit.h>
 
-// ★ サーバー側が対応しているなら、ここを必ず https にしてください
-static NSString *authURL = @"https://webudid.gt.tc/check.php";
+// ★あなたのサーバーの main.html のURLに変えてください
+static NSString *authURL = @"http://webudid.gt.tc/main.html";
 
-@interface AuthEntry : NSObject
+@interface AuthViewController : UIViewController <WKNavigationDelegate>
+@property (nonatomic, strong) WKWebView *webView;
 @end
 
-@implementation AuthEntry
-+ (void)load {
-    // 起動して3秒後に実行
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        [self startVerification];
-    });
-}
-
-+ (void)startVerification {
-    NSString *udid = [[[UIDevice currentDevice] identifierForVendor] UUIDString];
-    NSString *requestUrl = [NSString stringWithFormat:@"%@?myid=%@", authURL, udid];
+@implementation AuthViewController
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    self.webView = [[WKWebView alloc] initWithFrame:self.view.bounds];
+    self.webView.navigationDelegate = self;
+    [self.view addSubview:self.webView];
     
-    NSURLRequest *request = [NSURLRequest requestWithURL:[NSURL URLWithString:requestUrl]
-                                             cachePolicy:NSURLRequestReloadIgnoringLocalCacheData
-                                         timeoutInterval:20.0];
+    NSURLRequest *request = [NSURLRequest requestWithURL:[NSURL URLWithString:authURL]];
+    [self.webView loadRequest:request];
+}
 
-    // iOS標準の通信セッションを使用
-    NSURLSessionDataTask *task = [[NSURLSession sharedSession] dataTaskWithRequest:request 
-        completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
-            
-            NSString *res = data ? [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] : @"";
-            
-            dispatch_async(dispatch_get_main_queue(), ^{
-                // 成功（ALLOWED）以外はすべて警告を出す
-                if (![res containsString:@"ALLOWED"]) {
-                    NSString *status = (res.length > 0) ? res : @"SERVER_NO_RESPONSE";
-                    
-                    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"認証システム" 
-                        message:[NSString stringWithFormat:@"状態: %@\nID: %@", status, udid] 
-                        preferredStyle:1];
-                    
-                    [alert addAction:[UIAlertAction actionWithTitle:@"IDコピーして終了" style:2 handler:^(id a){
-                        [UIPasteboard generalPasteboard].string = udid;
-                        exit(0);
-                    }]];
-
-                    UIWindow *window = [UIApplication sharedApplication].windows.firstObject;
-                    [window.rootViewController presentViewController:alert animated:YES completion:nil];
-                }
-            });
-    }];
-    [task resume];
+// 認証成功（script.html に遷移）したら画面を閉じる
+- (void)webView:(WKWebView *)webView didFinishNavigation:(WKNavigation *)navigation {
+    if ([webView.URL.absoluteString containsString:@"script.html"]) {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            [self dismissViewControllerAnimated:YES completion:nil];
+        });
+    }
 }
 @end
+
+%ctor {
+    [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidFinishLaunchingNotification object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification *n){
+        AuthViewController *authVC = [[AuthViewController alloc] init];
+        authVC.modalPresentationStyle = UIModalPresentationFullScreen;
+        
+        UIViewController *root = [UIApplication sharedApplication].keyWindow.rootViewController;
+        [root presentViewController:authVC animated:YES completion:nil];
+    }];
+}
