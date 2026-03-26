@@ -12,10 +12,7 @@ jobs:
         run: |
           export THEOS=~/theos
           git clone --recursive https://github.com/theos/theos.git $THEOS
-          
-          # LDID（署名ツール）をインストール
           brew install ldid
-          
           curl -LO https://github.com/theos/sdks/archive/master.zip
           unzip master.zip
           mv sdks-master/*.sdk $THEOS/sdks
@@ -24,7 +21,6 @@ jobs:
       - name: Build Package
         run: |
           export THEOS=~/theos
-          # arm64（iPhone用）のみを狙い撃ちしてビルド
           make package FINALPACKAGE=1 ARCHS="arm64"
 
       - name: Upload Dylib
