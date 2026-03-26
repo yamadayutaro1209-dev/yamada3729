@@ -1,38 +1,52 @@
 #import <UIKit/UIKit.h>
 
-// ★ここを https ではなく http にして、最後に / を入れない
-static NSString *authURL = @"http://webudid.gt.tc/check.php";
+// ★ サーバー側が対応しているなら、ここを必ず https にしてください
+static NSString *authURL = @"https://webudid.gt.tc/check.php";
 
-@interface AuthObject : NSObject
+@interface AuthEntry : NSObject
 @end
 
-@implementation AuthObject
+@implementation AuthEntry
 + (void)load {
-    // 起動から5秒待つ（ネットワークが安定するまで待機）
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(5.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        NSString *udid = [[[UIDevice currentDevice] identifierForVendor] UUIDString];
-        NSString *target = [NSString stringWithFormat:@"%@?myid=%@", authURL, udid];
-        NSURL *url = [NSURL URLWithString:target];
-        
-        // 最もシンプルな通信
-        [[[NSURLSession sharedSession] dataTaskWithURL:url completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+    // 起動して3秒後に実行
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        [self startVerification];
+    });
+}
+
++ (void)startVerification {
+    NSString *udid = [[[UIDevice currentDevice] identifierForVendor] UUIDString];
+    NSString *requestUrl = [NSString stringWithFormat:@"%@?myid=%@", authURL, udid];
+    
+    NSURLRequest *request = [NSURLRequest requestWithURL:[NSURL URLWithString:requestUrl]
+                                             cachePolicy:NSURLRequestReloadIgnoringLocalCacheData
+                                         timeoutInterval:20.0];
+
+    // iOS標準の通信セッションを使用
+    NSURLSessionDataTask *task = [[NSURLSession sharedSession] dataTaskWithRequest:request 
+        completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+            
             NSString *res = data ? [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] : @"";
             
             dispatch_async(dispatch_get_main_queue(), ^{
-                // 画面に状況を出す（これで何が起きているか分かります）
+                // 成功（ALLOWED）以外はすべて警告を出す
                 if (![res containsString:@"ALLOWED"]) {
-                    NSString *displayMsg = (res.length > 0) ? res : @"通信エラー（またはブロック）";
-                    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Auth Check" 
-                        message:[NSString stringWithFormat:@"Status: %@\nID: %@", displayMsg, udid] 
+                    NSString *status = (res.length > 0) ? res : @"SERVER_NO_RESPONSE";
+                    
+                    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"認証システム" 
+                        message:[NSString stringWithFormat:@"状態: %@\nID: %@", status, udid] 
                         preferredStyle:1];
-                    [alert addAction:[UIAlertAction actionWithTitle:@"Copy ID & Exit" style:2 handler:^(id a){
+                    
+                    [alert addAction:[UIAlertAction actionWithTitle:@"IDコピーして終了" style:2 handler:^(id a){
                         [UIPasteboard generalPasteboard].string = udid;
                         exit(0);
                     }]];
-                    [[UIApplication sharedApplication].windows.firstObject.rootViewController presentViewController:alert animated:YES completion:nil];
+
+                    UIWindow *window = [UIApplication sharedApplication].windows.firstObject;
+                    [window.rootViewController presentViewController:alert animated:YES completion:nil];
                 }
             });
-        }] resume];
-    });
+    }];
+    [task resume];
 }
 @end
