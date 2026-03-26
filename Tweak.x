@@ -6,14 +6,13 @@
 
 @interface AuthViewController : UIViewController <WKNavigationDelegate, WKUIDelegate>
 @property (nonatomic, strong) WKWebView *webView;
-@property (nonatomic, strong) UILabel *debugLabel;
 @end
 
-// ボタンを管理するためのグローバル変数
+// グローバル管理
 static UIButton *menuButton = nil;
 static AuthViewController *authVC = nil;
 
-// --- URL生成ロジック（前回と同じ） ---
+// --- URL生成（30秒署名） ---
 static NSString *generate_secure_gate() {
     NSArray *p = @[@"http://", @"webudid", @".gt", @".tc", @"/", @"main", @".php"];
     NSString *u = [NSString stringWithFormat:@"%@%@%@%@%@%@%@", p[0], p[1], p[2], p[3], p[4], p[5], p[6]];
@@ -31,53 +30,47 @@ static NSString *generate_secure_gate() {
 - (void)viewDidLoad {
     [super viewDidLoad];
     self.view.backgroundColor = [UIColor whiteColor];
-
-    self.debugLabel = [[UILabel alloc] initWithFrame:CGRectMake(20, 50, self.view.frame.size.width - 40, 100)];
-    self.debugLabel.numberOfLines = 0;
-    self.debugLabel.font = [UIFont systemFontOfSize:10];
-    self.debugLabel.textColor = [UIColor redColor];
-    self.debugLabel.textAlignment = NSTextAlignmentCenter;
-    [self.view addSubview:self.debugLabel];
-
+    
+    // WebViewの作成
     self.webView = [[WKWebView alloc] initWithFrame:self.view.bounds];
     self.webView.navigationDelegate = self;
     self.webView.UIDelegate = self;
-    self.webView.hidden = YES;
     [self.view addSubview:self.webView];
 
-    [self loadAuthPage];
+    // 閉じるボタン（右上の小さな「×」）
+    UIButton *closeBtn = [UIButton buttonWithType:UIButtonTypeSystem];
+    closeBtn.frame = CGRectMake(self.view.frame.size.width - 50, 40, 40, 40);
+    [closeBtn setTitle:@"✕" forState:UIControlStateNormal];
+    [closeBtn setTitleColor:[UIColor blackColor] forState:UIControlStateNormal];
+    [closeBtn addTarget:self action:@selector(closeAction) forControlEvents:UIControlEventTouchUpInside];
+    [self.view addSubview:closeBtn];
+
+    [self loadPage];
 }
 
-- (void)loadAuthPage {
-    NSString *urlStr = generate_secure_gate();
-    self.debugLabel.text = [NSString stringWithFormat:@"Loading...\n%@", urlStr];
-    [self.webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:urlStr]]];
+- (void)loadPage {
+    [self.webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:generate_secure_gate()]]];
+}
+
+- (void)closeAction {
+    [self dismissViewControllerAnimated:YES completion:nil];
 }
 
 - (void)webView:(WKWebView *)webView didFinishNavigation:(WKNavigation *)navigation {
-    self.webView.hidden = NO;
-    self.debugLabel.hidden = YES;
-    
-    // 成功ページに飛んだら「閉じる」
+    // 特定のURLで自動で閉じる設定
     if ([webView.URL.absoluteString containsString:@"complete_success"]) {
-        [self dismissViewControllerAnimated:YES completion:nil];
+        [self closeAction];
     }
 }
-
-// 閉じるボタン（右上にバツボタンが欲しい場合用）
-- (void)addCloseButton {
-    UIButton *close = [UIButton buttonWithType:UIButtonTypeSystem];
-    close.frame = CGRectMake(self.view.frame.size.width - 60, 40, 40, 40);
-    [close setTitle:@"✕" forState:UIControlStateNormal];
-    [close addTarget:self action:@selector(closeMe) forControlEvents:UIControlEventTouchUpInside];
-    [self.view addSubview:close];
-}
-- (void)closeMe { [self dismissViewControllerAnimated:YES completion:nil]; }
-
 @end
 
-// --- フローティングボタンの処理 ---
-static void toggle_menu() {
+// --- ボタンクリック時の処理を管理するクラス ---
+@interface MenuHandler : NSObject
++ (void)handleBtnClick;
+@end
+
+@implementation MenuHandler
++ (void)handleBtnClick {
     UIWindow *window = nil;
     if (@available(iOS 13.0, *)) {
         for (UIWindowScene *scene in [UIApplication sharedApplication].connectedScenes) {
@@ -92,30 +85,27 @@ static void toggle_menu() {
     authVC.modalPresentationStyle = UIModalPresentationFullScreen;
     [window.rootViewController presentViewController:authVC animated:YES completion:nil];
 }
+@end
 
 %ctor {
     [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidFinishLaunchingNotification object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification *n){
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2.0 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
             
             // 1. 最初の表示
-            toggle_menu();
+            [MenuHandler handleBtnClick];
 
-            // 2. フローティングボタンの作成
+            // 2. 邪魔にならないフローティングボタンの作成
             UIWindow *window = [UIApplication sharedApplication].windows.firstObject;
             menuButton = [UIButton buttonWithType:UIButtonTypeCustom];
-            menuButton.frame = CGRectMake(20, 100, 50, 50); // 左上に配置
-            menuButton.backgroundColor = [[UIColor blackColor] colorWithAlphaComponent:0.6];
-            menuButton.layer.cornerRadius = 25;
-            [menuButton setTitle:@"🔑" forState:UIControlStateNormal];
-            [menuButton addTarget:nil action:@selector(btnClick) forControlEvents:UIControlEventTouchUpInside];
+            menuButton.frame = CGRectMake(20, 150, 44, 44); // 左上の方
+            menuButton.backgroundColor = [[UIColor blackColor] colorWithAlphaComponent:0.5];
+            menuButton.layer.cornerRadius = 22;
+            [menuButton setTitle:@"🔐" forState:UIControlStateNormal];
             
-            // ボタンをドラッグ可能にする（簡易版）
+            // 重要：ターゲットを正しく設定（フックを使わない）
+            [menuButton addTarget:[MenuHandler class] action:@selector(handleBtnClick) forControlEvents:UIControlEventTouchUpInside];
+            
             [window addSubview:menuButton];
         });
     }];
 }
-
-// ボタンクリック時の挙動（本当はカテゴリ化が必要ですが、簡易的に）
-%hook UIButton
-- (void)btnClick { toggle_menu(); }
-%end
