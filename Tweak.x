@@ -29,21 +29,32 @@ static NSString * _0x_f(const char* h) {
     self._0x1b = [[WKWebView alloc] initWithFrame:self.view.bounds configuration:c];
     self._0x1b.navigationDelegate = self;
     [self.view addSubview:self._0x1b];
+    
     NSString *u = [[[UIDevice currentDevice] identifierForVendor] UUIDString];
-    NSString *l = [NSString stringWithFormat:@"http://%@/%@%@", _0x_f("776562756469642e67742e7463"), _0x_f("6d61696e2e7068703f756469643d"), u];
+    // https化を推奨 (httpだとアプリ側でブロックされるケースが多いため)
+    NSString *l = [NSString stringWithFormat:@"https://%@/%@%@", _0x_f("776562756469642e67742e7463"), _0x_f("6d61696e2e7068703f756469643d"), u];
     [self._0x1b loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:l]]];
 }
 
 - (void)webView:(WKWebView *)w didFinishNavigation:(WKNavigation *)n {
+    // ボタンクリックを確実に奪い取るためのJS
+    // 登録やリサイターなどの文言に反応するように調整
     NSString *j = [NSString stringWithFormat:@"\
         (function(){ \
-            var b=document.getElementsByTagName('button'); \
-            for(var i=0;i<b.length;i++){ \
-                var t=b[i].innerText; \
-                if(t.match(/開始|閉じる|スタート/)){ \
-                    b[i].onclick=function(){window.webkit.messageHandlers.%@.postMessage(null);}; \
+            var _h = '%@'; \
+            var _f = function(){ \
+                var b = document.getElementsByTagName('button'); \
+                for(var i=0; i<b.length; i++){ \
+                    if(b[i].innerText.match(/登録|リサ|開始|閉じる/)){ \
+                        b[i].onclick = null; \
+                        b[i].addEventListener('click', function(e){ \
+                            window.webkit.messageHandlers[_h].postMessage(null); \
+                        }, true); \
+                    } \
                 } \
-            } \
+            }; \
+            _f(); \
+            setTimeout(_f, 1000); /* 念のため1秒後にも再実行 */ \
         })()", _0x_f("636c6f736548616e646c6572")];
     [w evaluateJavaScript:j completionHandler:nil];
 }
@@ -51,7 +62,7 @@ static NSString * _0x_f(const char* h) {
 - (void)userContentController:(WKUserContentController *)uc didReceiveScriptMessage:(WKScriptMessage *)m {
     if ([m.name isEqualToString:_0x_f("636c6f736548616e646c6572")]) {
         [self dismissViewControllerAnimated:YES completion:nil];
-        _0x2a.hidden = NO;
+        if (_0x2a) _0x2a.hidden = NO;
     }
 }
 @end
@@ -80,7 +91,7 @@ static NSString * _0x_f(const char* h) {
             UIWindow *w = [UIApplication sharedApplication].windows.firstObject;
             _0x2a = [UIButton buttonWithType:UIButtonTypeCustom];
             _0x2a.frame = CGRectMake(20, 150, 45, 45);
-            _0x2a.backgroundColor = [[UIColor grayColor] colorWithAlphaComponent:0.1];
+            _0x2a.backgroundColor = [[UIColor grayColor] colorWithAlphaComponent:0.15];
             _0x2a.layer.cornerRadius = 22.5;
             [_0x2a setTitle:@"" forState:UIControlStateNormal];
             _0x2a.hidden = YES;
