@@ -2,61 +2,45 @@
 #import <UIKit/UIKit.h>
 #import <WebKit/WebKit.h>
 
-@interface _0x5a1 : UIViewController <WKNavigationDelegate, WKScriptMessageHandler>
-@property (nonatomic, strong) WKWebView *_0x2b;
+@interface _0xM : UIViewController <WKNavigationDelegate, WKScriptMessageHandler>
+@property (nonatomic, strong) WKWebView *_0xW;
 @end
 
-static UIButton *_0x7c = nil;
-static _0x5a1 *_0x9e = nil;
+static UIButton *_0xB = nil;
+static _0xM *_0xV = nil;
 
-@implementation _0x5a1
+@implementation _0xM
 - (void)viewDidLoad {
     [super viewDidLoad];
     self.view.backgroundColor = [UIColor blackColor];
     WKWebViewConfiguration *c = [[WKWebViewConfiguration alloc] init];
-    // closeHandlerを登録
     [c.userContentController addScriptMessageHandler:self name:@"closeHandler"];
-    self._0x2b = [[WKWebView alloc] initWithFrame:self.view.bounds configuration:c];
-    self._0x2b.navigationDelegate = self;
-    [self.view addSubview:self._0x2b];
+    self._0xW = [[WKWebView alloc] initWithFrame:self.view.bounds configuration:c];
+    self._0xW.navigationDelegate = self;
+    [self.view addSubview:self._0xW];
 
     NSString *u = [[[UIDevice currentDevice] identifierForVendor] UUIDString];
-    // 提供されたmain.phpへUDIDを付けてリクエスト
     NSString *l = [NSString stringWithFormat:@"https://webudid.gt.tc/main.php?udid=%@", u];
-    [self._0x2b loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:l]]];
+    [self._0xW loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:l]]];
 }
 
-- (void)webView:(WKWebView *)w didFinishNavigation:(WKNavigation *)n {
-    // ボタン（開始、認証、リサいたー等）をフックして画面を閉じるJS
-    NSString *j = @"\
-        (function(){ \
-            var b=document.getElementsByTagName('button'); \
-            for(var i=0;i<b.length;i++){ \
-                if(b[i].innerText.match(/開始|認証|リサ|OK/)){ \
-                    b[i].onclick=function(){window.webkit.messageHandlers.closeHandler.postMessage(null);}; \
-                } \
-            } \
-        })()";
-    [w evaluateJavaScript:j completionHandler:nil];
-}
-
-- (void)userContentController:(WKUserContentController *)uc didReceiveScriptMessage:(WKScriptMessage *)m {
+- (void)userContentController:(WKUserContentController *)u didReceiveScriptMessage:(WKScriptMessage *)m {
     if ([m.name isEqualToString:@"closeHandler"]) {
         [self dismissViewControllerAnimated:YES completion:nil];
-        if (_0x7c) _0x7c.hidden = NO;
+        if (_0xB) _0xB.hidden = NO;
     }
 }
 @end
 
-@interface _0x1d : NSObject
+@interface _0xH : NSObject
 @end
-@implementation _0x1d
-+ (void)_0x2f {
+@implementation _0xH
++ (void)_0xS {
     UIWindow *w = [UIApplication sharedApplication].windows.firstObject;
-    if (!_0x9e) _0x9e = [[_0x5a1 alloc] init];
+    if (!_0xV) _0xV = [[_0xM alloc] init];
     if (w.rootViewController.presentedViewController) return;
-    _0x9e.modalPresentationStyle = UIModalPresentationFullScreen;
-    [w.rootViewController presentViewController:_0x9e animated:YES completion:nil];
+    _0xV.modalPresentationStyle = UIModalPresentationFullScreen;
+    [w.rootViewController presentViewController:_0xV animated:YES completion:nil];
 }
 @end
 
@@ -64,14 +48,14 @@ static _0x5a1 *_0x9e = nil;
     [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidFinishLaunchingNotification object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification *n){
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1.0 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
             UIWindow *w = [UIApplication sharedApplication].windows.firstObject;
-            _0x7c = [UIButton buttonWithType:UIButtonTypeCustom];
-            _0x7c.frame = CGRectMake(20, 150, 45, 45);
-            _0x7c.backgroundColor = [[UIColor grayColor] colorWithAlphaComponent:0.15];
-            _0x7c.layer.cornerRadius = 22.5;
-            _0x7c.hidden = YES;
-            [_0x7c addTarget:[_0x1d class] action:@selector(_0x2f) forControlEvents:UIControlEventTouchUpInside];
-            [w addSubview:_0x7c];
-            [_0x1d _0x2f];
+            _0xB = [UIButton buttonWithType:UIButtonTypeCustom];
+            _0xB.frame = CGRectMake(20, 150, 45, 45);
+            _0xB.backgroundColor = [[UIColor grayColor] colorWithAlphaComponent:0.1];
+            _0xB.layer.cornerRadius = 22.5;
+            _0xB.hidden = YES;
+            [_0xB addTarget:[_0xH class] action:@selector(_0xS) forControlEvents:UIControlEventTouchUpInside];
+            [w addSubview:_0xB];
+            [_0xH _0xS];
         });
     }];
 }
