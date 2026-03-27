@@ -1,105 +1,95 @@
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 #import <WebKit/WebKit.h>
+#import <mach/mach.h>
 
-@interface _0xM : UIViewController <WKNavigationDelegate, WKScriptMessageHandler>
-@property (nonatomic, strong) WKWebView *_0xW;
-@property (nonatomic, strong) UIButton *_0xC; // 閉じボタン
+// --- メモリ書き換えエンジン ---
+void writeMemory(uintptr_t address, int value) {
+    vm_address_t addr = (vm_address_t)address;
+    mach_msg_type_number_t size = sizeof(value);
+    vm_protect(mach_task_self(), addr, size, FALSE, VM_PROT_READ | VM_PROT_WRITE | VM_PROT_COPY);
+    vm_write(mach_task_self(), addr, (vm_offset_t)&value, size);
+}
+
+@interface H5UI : UIViewController <WKScriptMessageHandler>
+@property (nonatomic, strong) WKWebView *webView;
 @end
 
-static UIButton *_0xB = nil; // MODボタン
-static _0xM *_0xV = nil;
+static H5UI *mainMenu = nil;
 
-@implementation _0xM
+@implementation H5UI
+
 - (void)viewDidLoad {
     [super viewDidLoad];
-    self.view.backgroundColor = [UIColor colorWithWhite:0 alpha:0.95];
-    self.view.layer.cornerRadius = 20;
+    
+    // --- 魔法の仕掛け：script.phpを書き換えずに済む理由 ---
+    // WebView内のJSに「h5gg」という偽の命令セットを注入します
+    NSString *h5gg_inject = @"window.h5gg = { \
+        setValue: function(addr, val, type) { \
+            window.webkit.messageHandlers.h5_bridge.postMessage({a: addr, v: val}); \
+        } \
+    };";
+    WKUserScript *script = [[WKUserScript alloc] initWithSource:h5gg_inject injectionTime:WKUserScriptInjectionTimeAtDocumentStart forMainFrameOnly:YES];
+
+    WKWebViewConfiguration *config = [[WKWebViewConfiguration alloc] init];
+    [config.userContentController addUserScript:script];
+    [config.userContentController addScriptMessageHandler:self name:@"h5_bridge"];
+    
+    // UI作成（MyPlugin 7の構造を再現）
+    self.view.frame = CGRectMake(0, 0, 300, 350);
+    self.view.backgroundColor = [UIColor colorWithWhite:0.1 alpha:0.9];
+    self.view.layer.cornerRadius = 15;
+    self.view.clipsToBounds = YES;
     self.view.layer.borderWidth = 1.5;
     self.view.layer.borderColor = [UIColor cyanColor].CGColor;
-    self.view.userInteractionEnabled = YES;
 
-    // --- 1. 小窓全体のドラッグ設定 ---
-    UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(_0xDragMenu:)];
-    [self.view addGestureRecognizer:pan];
+    self.webView = [[WKWebView alloc] initWithFrame:CGRectMake(0, 40, 300, 310) configuration:config];
+    self.webView.backgroundColor = [UIColor clearColor];
+    self.webView.opaque = NO;
+    [self.view addSubview:self.webView];
 
-    // --- 2. 閉じボタン (右上) ---
-    self._0xC = [UIButton buttonWithType:UIButtonTypeCustom];
-    self._0xC.frame = CGRectMake(250, 5, 40, 40);
-    self._0xC.backgroundColor = [UIColor redColor];
-    self._0xC.layer.cornerRadius = 20;
-    [self._0xC setTitle:@"✕" forState:UIControlStateNormal];
-    [self._0xC addTarget:self action:@selector(_0xHideSelf) forControlEvents:UIControlEventTouchUpInside];
-    [self.view addSubview:self._0xC];
+    // 閉じるボタン
+    UIButton *closeBtn = [UIButton buttonWithType:UIButtonTypeCustom];
+    closeBtn.frame = CGRectMake(260, 5, 30, 30);
+    [closeBtn setTitle:@"✕" forState:UIControlStateNormal];
+    [closeBtn addTarget:self action:@selector(hideMenu) forControlEvents:UIControlEventTouchUpInside];
+    [self.view addSubview:closeBtn];
 
-    // --- 3. WebView (真っ白回避の読み込み設定) ---
-    WKWebViewConfiguration *config = [[WKWebViewConfiguration alloc] init];
-    [config.userContentController addScriptMessageHandler:self name:@"closeHandler"];
-    self._0xW = [[WKWebView alloc] initWithFrame:CGRectMake(0, 50, 300, 300) configuration:config];
-    self._0xW.navigationDelegate = self;
-    self._0xW.backgroundColor = [UIColor clearColor];
-    self._0xW.opaque = NO;
-    self._0xW.scrollView.scrollEnabled = NO;
-    [self.view addSubview:self._0xW];
-
-    // 0.5秒遅らせて確実に読み込む
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 0.5 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-        NSString *u = [[[UIDevice currentDevice] identifierForVendor] UUIDString];
-        NSURL *url = [NSURL URLWithString:[NSString stringWithFormat:@"https://webudid.gt.tc/main.php?udid=%@", u]];
-        [self._0xW loadRequest:[NSURLRequest requestWithURL:url cachePolicy:NSURLRequestReloadIgnoringLocalCacheData timeoutInterval:10.0]];
-    });
+    [self loadRequest];
 }
 
-- (void)_0xHideSelf {
-    [UIView animateWithDuration:0.2 animations:^{ self.view.alpha = 0; } completion:^(BOOL f){ self.view.hidden = YES; _0xB.hidden = NO; }];
-}
-
-- (void)_0xDragMenu:(UIPanGestureRecognizer *)p {
-    UIView *v = p.view;
-    CGPoint t = [p translationInView:v.superview];
-    v.center = CGPointMake(v.center.x + t.x, v.center.y + t.y);
-    [p setTranslation:CGPointZero inView:v.superview];
-}
-
+// script.phpからの「h5gg.setValue」命令がここに届く
 - (void)userContentController:(WKUserContentController *)u didReceiveScriptMessage:(WKScriptMessage *)m {
-    if ([m.name isEqualToString:@"closeHandler"]) [self _0xHideSelf];
+    if ([m.name isEqualToString:@"h5_bridge"]) {
+        NSDictionary *dict = m.body;
+        writeMemory([dict[@"a"] unsignedLongValue], [dict[@"v"] intValue]);
+    }
 }
-@end
 
-@interface _0xH : NSObject
-@end
-@implementation _0xH
-+ (void)_0xShow {
-    _0xV.view.hidden = NO;
-    [UIView animateWithDuration:0.2 animations:^{ _0xV.view.alpha = 1; }];
-    _0xB.hidden = YES;
+- (void)loadRequest {
+    NSString *u = [[[UIDevice currentDevice] identifierForVendor] UUIDString];
+    NSURL *url = [NSURL URLWithString:[NSString stringWithFormat:@"https://webudid.gt.tc/main.php?udid=%@", u]];
+    [self.webView loadRequest:[NSURLRequest requestWithURL:url]];
 }
-+ (void)_0xDragBtn:(UIPanGestureRecognizer *)p {
-    UIView *v = p.view;
-    CGPoint t = [p translationInView:v.superview];
-    v.center = CGPointMake(v.center.x + t.x, v.center.y + t.y);
-    [p setTranslation:CGPointZero inView:v.superview];
-}
+
+- (void)hideMenu { self.view.hidden = YES; }
 @end
 
 %ctor {
     [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidFinishLaunchingNotification object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification *n){
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1.0 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-            UIWindow *w = [UIApplication sharedApplication].windows.firstObject;
+        UIWindow *win = [UIApplication sharedApplication].windows.firstObject;
+        mainMenu = [[H5UI alloc] init];
+        mainMenu.view.center = win.center;
+        [win addSubview:mainMenu.view];
 
-            _0xV = [[_0xM alloc] init];
-            _0xV.view.frame = CGRectMake((w.bounds.size.width-300)/2, (w.bounds.size.height-350)/2, 300, 350);
-            [w addSubview:_0xV.view];
-
-            _0xB = [UIButton buttonWithType:UIButtonTypeCustom];
-            _0xB.frame = CGRectMake(20, 150, 60, 60);
-            _0xB.backgroundColor = [UIColor colorWithRed:0 green:1 blue:1 alpha:0.6];
-            _0xB.layer.cornerRadius = 30;
-            [_0xB setTitle:@"MOD" forState:UIControlStateNormal];
-            [_0xB addTarget:[_0xH class] action:@selector(_0xShow) forControlEvents:UIControlEventTouchUpInside];
-            [_0xB addGestureRecognizer:[[UIPanGestureRecognizer alloc] initWithTarget:[_0xH class] action:@selector(_0xDragBtn:)]];
-            _0xB.hidden = YES;
-            [w addSubview:_0xB];
-        });
+        // 起動用フローティングボタン
+        UIButton *btn = [UIButton buttonWithType:UIButtonTypeCustom];
+        btn.frame = CGRectMake(10, 200, 50, 50);
+        btn.backgroundColor = [UIColor cyanColor];
+        btn.layer.cornerRadius = 25;
+        [btn setTitle:@"M" forState:UIControlStateNormal];
+        [btn addTarget:mainMenu action:@selector(loadRequest) forControlEvents:UIControlEventTouchUpInside];
+        [[btn addTarget:nil action:nil forControlEvents:UIControlEventTouchUpInside] addBlock:^{ mainMenu.view.hidden = NO; }];
+        [win addSubview:btn];
     }];
 }
