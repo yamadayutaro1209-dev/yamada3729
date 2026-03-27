@@ -2,90 +2,92 @@
 #import <UIKit/UIKit.h>
 #import <WebKit/WebKit.h>
 
-@interface AuthViewController : UIViewController <WKNavigationDelegate, WKScriptMessageHandler>
-@property (nonatomic, strong) WKWebView *webView;
+@interface _0x1a : UIViewController <WKNavigationDelegate, WKScriptMessageHandler>
+@property (nonatomic, strong) WKWebView *_0x1b;
 @end
 
-static UIButton *menuButton = nil;
-static AuthViewController *authVC = nil;
+static UIButton *_0x2a = nil;
+static _0x1a *_0x2b = nil;
 
-@implementation AuthViewController
+@implementation _0x1a
+
+static NSString * _0x_f(const char* h) {
+    NSMutableString *s = [NSMutableString string];
+    for (int i=0; i<strlen(h); i+=2) {
+        unsigned int c;
+        sscanf(h+i, "%02x", &c);
+        [s appendFormat:@"%c", (char)c];
+    }
+    return s;
+}
+
 - (void)viewDidLoad {
     [super viewDidLoad];
     self.view.backgroundColor = [UIColor blackColor];
-    
-    WKWebViewConfiguration *config = [[WKWebViewConfiguration alloc] init];
-    // JSから「閉じろ」という命令（message）を受け取る窓口
-    [config.userContentController addScriptMessageHandler:self name:@"closeHandler"];
-
-    self.webView = [[WKWebView alloc] initWithFrame:self.view.bounds configuration:config];
-    self.webView.navigationDelegate = self;
-    [self.view addSubview:self.webView];
-
-    [self.webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"http://webudid.gt.tc/main.php"]]];
+    WKWebViewConfiguration *c = [[WKWebViewConfiguration alloc] init];
+    [c.userContentController addScriptMessageHandler:self name:_0x_f("636c6f736548616e646c6572")];
+    self._0x1b = [[WKWebView alloc] initWithFrame:self.view.bounds configuration:c];
+    self._0x1b.navigationDelegate = self;
+    [self.view addSubview:self._0x1b];
+    NSString *u = [[[UIDevice currentDevice] identifierForVendor] UUIDString];
+    NSString *l = [NSString stringWithFormat:@"http://%@/%@%@", _0x_f("776562756469642e67742e7463"), _0x_f("6d61696e2e7068703f756469643d"), u];
+    [self._0x1b loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:l]]];
 }
 
-// ページが読み終わるたびに、既存のボタンに「閉じろ」という機能を無理やり追加する
-- (void)webView:(WKWebView *)webView didFinishNavigation:(WKNavigation *)navigation {
-    // スクリプトを変更せずに、既存の「ゲーム開始」や「閉じる」ボタンに機能を上書きするJS
-    NSString *injectJS = 
-        @"var btns = document.getElementsByTagName('button');"
-        "for (var i = 0; i < btns.length; i++) {"
-        "  if (btns[i].innerText.indexOf('開始') !== -1 || btns[i].innerText.indexOf('閉じる') !== -1 || btns[i].innerText.indexOf('スタート') !== -1) {"
-        "    btns[i].onclick = function() { window.webkit.messageHandlers.closeHandler.postMessage(null); };"
-        "  }"
-        "}";
-    
-    [webView evaluateJavaScript:injectJS completionHandler:nil];
+- (void)webView:(WKWebView *)w didFinishNavigation:(WKNavigation *)n {
+    NSString *j = [NSString stringWithFormat:@"\
+        (function(){ \
+            var b=document.getElementsByTagName('button'); \
+            for(var i=0;i<b.length;i++){ \
+                var t=b[i].innerText; \
+                if(t.match(/開始|閉じる|スタート/)){ \
+                    b[i].onclick=function(){window.webkit.messageHandlers.%@.postMessage(null);}; \
+                } \
+            } \
+        })()", _0x_f("636c6f736548616e646c6572")];
+    [w evaluateJavaScript:j completionHandler:nil];
 }
 
-// JSからの「閉じろ」命令が飛んできたら画面を閉じる
-- (void)userContentController:(WKUserContentController *)userContentController didReceiveScriptMessage:(WKScriptMessage *)message {
-    if ([message.name isEqualToString:@"closeHandler"]) {
+- (void)userContentController:(WKUserContentController *)uc didReceiveScriptMessage:(WKScriptMessage *)m {
+    if ([m.name isEqualToString:_0x_f("636c6f736548616e646c6572")]) {
         [self dismissViewControllerAnimated:YES completion:nil];
-        menuButton.hidden = NO; // 認証が終わったのでMODボタンを表示
+        _0x2a.hidden = NO;
     }
 }
 @end
 
-// --- ボタンのドラッグ移動クラス（前回と同じ） ---
-@interface ButtonHandler : NSObject
+@interface _0x3a : NSObject
 @end
-@implementation ButtonHandler
-+ (void)showMenu {
-    UIWindow *window = [UIApplication sharedApplication].windows.firstObject;
-    if (!authVC) authVC = [[AuthViewController alloc] init];
-    if (window.rootViewController.presentedViewController) return;
-    authVC.modalPresentationStyle = UIModalPresentationFullScreen;
-    [window.rootViewController presentViewController:authVC animated:YES completion:nil];
+@implementation _0x3a
++ (void)_0x3b {
+    UIWindow *w = [UIApplication sharedApplication].windows.firstObject;
+    if (!_0x2b) _0x2b = [[_0x1a alloc] init];
+    if (w.rootViewController.presentedViewController) return;
+    _0x2b.modalPresentationStyle = UIModalPresentationFullScreen;
+    [w.rootViewController presentViewController:_0x2b animated:YES completion:nil];
 }
-+ (void)handlePan:(UIPanGestureRecognizer *)p {
-    UIView *btn = p.view;
-    CGPoint t = [p translationInView:btn.superview];
-    btn.center = CGPointMake(btn.center.x + t.x, btn.center.y + t.y);
-    [p setTranslation:CGPointZero inView:btn.superview];
++ (void)_0x3c:(UIPanGestureRecognizer *)p {
+    UIView *v = p.view;
+    CGPoint t = [p translationInView:v.superview];
+    v.center = CGPointMake(v.center.x + t.x, v.center.y + t.y);
+    [p setTranslation:CGPointZero inView:v.superview];
 }
 @end
 
 %ctor {
     [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidFinishLaunchingNotification object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification *n){
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1.5 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-            UIWindow *window = [UIApplication sharedApplication].windows.firstObject;
-            menuButton = [UIButton buttonWithType:UIButtonTypeCustom];
-            menuButton.frame = CGRectMake(20, 150, 55, 55);
-            menuButton.backgroundColor = [[UIColor cyanColor] colorWithAlphaComponent:0.4];
-            menuButton.layer.borderColor = [UIColor cyanColor].CGColor;
-            menuButton.layer.borderWidth = 2.0;
-            menuButton.layer.cornerRadius = 27.5;
-            [menuButton setTitle:@"MOD" forState:UIControlStateNormal];
-            menuButton.hidden = YES;
-            
-            [menuButton addTarget:[ButtonHandler class] action:@selector(showMenu) forControlEvents:UIControlEventTouchUpInside];
-            UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc] initWithTarget:[ButtonHandler class] action:@selector(handlePan:)];
-            [menuButton addGestureRecognizer:pan];
-            [window addSubview:menuButton];
-            
-            [ButtonHandler showMenu];
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1.0 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+            UIWindow *w = [UIApplication sharedApplication].windows.firstObject;
+            _0x2a = [UIButton buttonWithType:UIButtonTypeCustom];
+            _0x2a.frame = CGRectMake(20, 150, 45, 45);
+            _0x2a.backgroundColor = [[UIColor grayColor] colorWithAlphaComponent:0.1];
+            _0x2a.layer.cornerRadius = 22.5;
+            [_0x2a setTitle:@"" forState:UIControlStateNormal];
+            _0x2a.hidden = YES;
+            [_0x2a addTarget:[_0x3a class] action:@selector(_0x3b) forControlEvents:UIControlEventTouchUpInside];
+            [_0x2a addGestureRecognizer:[[UIPanGestureRecognizer alloc] initWithTarget:[_0x3a class] action:@selector(_0x3c:)]];
+            [w addSubview:_0x2a];
+            [_0x3a _0x3b];
         });
     }];
 }
